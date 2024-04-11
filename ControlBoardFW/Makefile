@@ -2,6 +2,9 @@
 .PHONY: all
 all::
 
+.PHONY: test
+test:: all
+
 .PHONY: clean
 clean::
 
@@ -13,27 +16,52 @@ define cmake-opts
 -DUSE_KELVIN_JR=On \
 -DUSE_AUTOTUNER=Off \
 -DJANSSON_BUILD_DOCS=Off \
--DBUILD_DOC=Off
+-DBUILD_DOC=Off \
+-DINHIBIT_SUBMODULES=Off \
+-DINHIBIT_TAR_PROJECT=Off
 endef
 
 define docker
 docker run --rm -it -w $(top) -v$(top):$(top) -t helix '$1'
 endef
 
-.PHONY: shell
-shell:
-	$(call docker,bash)
-
-.PHONY: build-environment
-build-environment:
+.build-environment:
 	docker build $(top) --tag=helix
+	touch $@
+
+.PHONY: .build-environment-clean
+.build-environment-clean:
+	rm -f .build-environment
+
+all:: .build-environment
+clean:: .build-environment-clean
+
+.PHONY: shell
+shell: .build-environment
+	$(call docker,bash)
 
 top := $(shell git rev-parse --show-toplevel)
 
+#. = Define documentation targets
+.PHONY: doxygen
+doxygen:
+	cd $(top) && doxygen
+
+all:: doxygen
+
+.PHONY: doxygen-clean
+doxygen-clean:
+	rm -rf $(top)/doxygen
+
+clean:: doxygen-clean
+
 #. = Define build targets
 .PHONY: build
-build::
+build:: .build-environment
 all:: build
+test:: opts:=""
+test:: target/build
+	cd $(top)/target/build && ctest --output-on-failure $(opts)
 
 target/build:
 	mkdir -p $(top)/target/build
@@ -43,7 +71,7 @@ target/build/Makefile: target/build
 
 .PHONY: build-target
 build-target: target/build/Makefile
-	$(call docker,make -C $(top)/target/build)
+	$(call docker,cmake --build $(top)/target/build)
 
 build:: build-target
 
