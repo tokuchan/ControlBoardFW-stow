@@ -1,4 +1,8 @@
 #. =Build ControlBoardFW inside a docker image.
+#. The `build-image` variable specifies the build image to use.
+build-image:="helix"
+
+#. Specify the master targets, and the default target.
 .PHONY: all
 all::
 
@@ -22,16 +26,18 @@ define cmake-opts
 endef
 
 define docker
-docker run --rm -it -w $(top) -v$(top):$(top) -t helix '$1'
+docker run --rm -it -w $(top) -v$(top):$(top) -t $(build-image) '$1'
 endef
 
-.build-environment:
-	docker build $(top) --tag=helix
+.build-environment: .build-environment-$(build-image)
+
+.build-environment-$(build-image):
+	docker build $(top) --tag=$(build-image) --file=$(top)/Dockerfiles/$(build-image)/Dockerfile
 	touch $@
 
 .PHONY: .build-environment-clean
 .build-environment-clean:
-	rm -f .build-environment
+	rm -f .build-environment*
 
 all:: .build-environment
 clean:: .build-environment-clean
@@ -61,7 +67,7 @@ build:: .build-environment
 all:: build
 test:: opts:=""
 test:: target/build
-	cd $(top)/target/build && ctest --output-on-failure $(opts)
+	cd $(top)/target/build && ctest --output-on-failure --no-tests=error $(opts)
 
 target/build:
 	mkdir -p $(top)/target/build
@@ -71,7 +77,7 @@ target/build/Makefile: target/build
 
 .PHONY: build-target
 build-target: target/build/Makefile
-	$(call docker,cmake --build $(top)/target/build)
+	$(call docker,cmake --build $(top)/target/build --parallel=20)
 
 build:: build-target
 
