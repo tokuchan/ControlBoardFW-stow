@@ -19,7 +19,8 @@ RUN cd /gcc/target && tar cf /gcc/gcc-9.tar ./
 
 
 FROM base as helix
-RUN apt-get -qq install cmake libgpiod-dev libi2c-dev git netcat
+RUN apt-get update
+RUN apt-get -yqq install cmake libgpiod-dev libi2c-dev git netcat jq gdb
 COPY --from=gcc-9 /gcc/gcc-9.tar /usr/local/
 RUN cd /usr/local && tar xf gcc-9.tar
 ENTRYPOINT ["/bin/bash", "-c"]
