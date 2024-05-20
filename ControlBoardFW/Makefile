@@ -28,7 +28,7 @@
 # build), we just use the current directory (assuming you ran `make` targeting
 # the top level of the project).
 
-top := $(shell git rev-parse --show-toplevel || pwd)
+top := $(shell git rev-parse --show-toplevel 2>/dev/null || pwd)
 
 #. == Define default build image
 
@@ -36,7 +36,7 @@ top := $(shell git rev-parse --show-toplevel || pwd)
 # `.build-image`, with a single line of text inside, we'll use whatever _that_
 # is as the build image instead.
 
-build-image:=$(shell cat $(top)/.build-image || echo 'helix')
+build-image:=$(shell cat $(top)/.build-image 2>/dev/null || echo 'helix')
 
 #. == Define primary targets
 
@@ -72,7 +72,8 @@ define cmake-opts
 -DJANSSON_BUILD_DOCS=Off \
 -DBUILD_DOC=Off \
 -DINHIBIT_SUBMODULES=Off \
--DINHIBIT_TAR_PROJECT=Off
+-DINHIBIT_TAR_PROJECT=Off \
+-DBUILD_TESTS=On
 endef
 
 #. == Define the build environment
@@ -152,12 +153,20 @@ test:: build
 target/build:
 	mkdir -p $(top)/target/build
 
+#. === Generate the build system
+
 target/build/Makefile: target/build
 	$(call docker,cd $(top)/target/build && cmake $(cmake-opts) ../..)
 
+#. The build-target sub target actually runs the build. Please note the scoped
+# variable `parallel`, which specifies the number of concurrent processes to run
+# when building. If you need to set that number explicitly, you can easily do so
+# right on the command line: `make parallel=2 clean all`.
+
 .PHONY: build-target # Run the cmake-generated Makefile in the build environment.
+build-target: parallel:= 20
 build-target: target/build/Makefile
-	$(call docker,cmake --build $(top)/target/build --parallel=20)
+	$(call docker,cmake --build $(top)/target/build --parallel=$(parallel))
 
 build:: build-target
 
@@ -231,8 +240,54 @@ help:
 # lines to separate the paragraphs.
 
 .PHONY: weave # Render this file as internal documentation
-weave: Makefile.typst
+weave: Makefile.pdf
 
-Makefile.typst: Makefile
-	cat Makefile | sed 's,^# ,,g' | awk -v RS= -v ORS="\n\n" '!/#\. /{print "``""`Makefile\n"$$0"\n`""``\n"}; /^#\./{gsub("#\. ", "", $$0); print $$0}' > $@
-	typst compile Makefile.typst Makefile.pdf
+%.pdf: type:=Makefile
+%.pdf: %.typst
+	typst compile $< $@
+
+%.typst: type:=Makefile
+%.typst: %
+	cat $< | sed 's,^# ,,g' | awk -v RS= -v ORS="\n\n" '!/#\. /{print "``""`$(type)\n"$$0"\n`""``\n"}; /^#\./{gsub("#\. ", "", $$0); print $$0}' > $@
+
+#. == Yocto Build Targets
+
+#. Yocto is a completely different animal from the normal build process. As
+# such, the targets to handle it are treated specially. Basically, there's a
+# script that does most of the work, and we need to ensure that all of the
+# required dependencies are installed.
+
+#. First, we must set and export the language to get the right locale.
+
+export LANG=en_US.UTF-8
+
+#. Vivado is picky about shells. Therefore, I have to use bash by default.
+
+SHELL:= /bin/bash -l
+
+#. Now we can define the special yocto targets.
+
+.PHONY: yocto # Build the yocto project, starting with a repo-sync'ed directory.
+yocto: yocto-install-dependencies yocto-verify-python yocto-full-build
+
+.PHONY: yocto-install-dependencies # Install required packages
+yocto-install-dependencies:
+	./install-dependencies.sh
+
+.PHONY: yocto-verify-python # Verify that python provides the correct packages
+yocto-verify-python:
+	python -c 'import distutils'
+
+.PHONY: yocto-full-build # Run the bitstream and image builds
+yocto-full-build:
+	cd Linux && printf '1\n3\n' | ./scripts/run
+
+.PHONY: yocto-clean # Clean the yocto build
+yocto-clean:
+	- cd Linux && printf '2\nY\n' | ./scripts/run
+	- rm -f ./bitbake-cookerdaemon.log
+	- find ./Linux/ -name bitbake.lock -exec rm {} \;
+
+.PHONY: yocto-menu # Run the build script to get the menu
+yocto-menu: yocto-install-dependencies yocto-verify-python
+	cd Linux && ./scripts/run
