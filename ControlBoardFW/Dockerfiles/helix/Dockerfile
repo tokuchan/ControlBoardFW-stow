@@ -11,16 +11,17 @@ FROM base as gcc-9
 RUN mkdir -p /gcc
 WORKDIR /gcc
 RUN curl -O https://mirrorservice.org/sites/sourceware.org/pub/gcc/releases/gcc-9.3.0/gcc-9.3.0.tar.xz
-RUN tar xf gcc-9.3.0.tar.xz
+RUN tar -x --no-same-owner --no-same-permissions -f gcc-9.3.0.tar.xz
 WORKDIR /gcc/gcc-9.3.0
 RUN ./configure --prefix=/gcc/target --disable-multilib
-RUN make all install
-RUN cd /gcc/target && tar cf /gcc/gcc-9.tar ./
+RUN make all -j30
+RUN make install
+RUN cd /gcc/target && tar -c --no-same-owner --no-same-permissions -f /gcc/gcc-9.tar ./
 
 
 FROM base as helix
 RUN apt-get update
-RUN apt-get -yqq install cmake libgpiod-dev libi2c-dev git netcat jq gdb
+RUN apt-get --fix-missing -yqq install cmake libgpiod-dev libi2c-dev git netcat-openbsd jq gdb graphviz doxygen
 COPY --from=gcc-9 /gcc/gcc-9.tar /usr/local/
-RUN cd /usr/local && tar xf gcc-9.tar
+RUN cd /usr/local && tar -x --no-same-owner --no-same-permissions -f gcc-9.tar
 ENTRYPOINT ["/bin/bash", "-c"]

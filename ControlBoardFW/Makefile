@@ -87,14 +87,14 @@ endef
 # removes the checkpoint files so that docker will be run again.
 
 define docker
-docker run --rm -it -w $(top) -v$$HOME:$$HOME -v$(top):$(top) -t $(build-image) '$1'
+docker run --security-opt seccomp=unconfined --rm -it -w $(top) -v$$HOME:$$HOME:z -v$(top):$(top):z -t $(build-image) '$1'
 endef
 
 .build-environment: .build-environment-$(build-image)
 	touch $@
 
 .build-environment-$(build-image):
-	docker build $(top) --tag=$(build-image) --file=$(top)/Dockerfiles/$(build-image)/Dockerfile
+	docker build $(top) --security-opt seccomp=unconfined --tag=$(build-image) --file=$(top)/Dockerfiles/$(build-image)/Dockerfile
 	touch $@
 
 .PHONY: build-environment-clean # Clean build environment marker files.
@@ -126,7 +126,7 @@ rebuild-shell: build-environment-clean shell
 
 .PHONY: doxygen # Build documentation.
 doxygen:
-	cd $(top) && doxygen
+	$(call docker,cd $(top) && doxygen)
 
 all:: doxygen
 
