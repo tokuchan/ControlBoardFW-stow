@@ -272,7 +272,7 @@ yocto: yocto-install-dependencies yocto-verify-python yocto-full-build
 
 .PHONY: yocto-install-dependencies # Install required packages
 yocto-install-dependencies:
-	./install-dependencies.sh
+	./install-yocto-dependencies.sh
 
 .PHONY: yocto-verify-python # Verify that python provides the correct packages
 yocto-verify-python:
