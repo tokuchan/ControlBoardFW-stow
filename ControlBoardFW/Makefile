@@ -86,7 +86,9 @@ define cmake-opts
 -DBUILD_DOC=Off \
 -DINHIBIT_SUBMODULES=Off \
 -DINHIBIT_TAR_PROJECT=Off \
--DBUILD_TESTS=On
+-DBUILD_TESTS=On \
+-DUSE_SUPPORT_LIB=On \
+-DCMAKE_BUILD_TYPE=Debug
 endef
 
 #. == Define the build environment
