@@ -105,6 +105,9 @@ define docker
 docker run --security-opt seccomp=unconfined --rm -it -w $(top) -v$$HOME:$$HOME:z -v$(top):$(top):z -t $(build-image) '$1'
 endef
 
+.PHONY: build-environment # Docker image needed to build things
+build-environment: .build-environment
+
 .build-environment: .build-environment-$(build-image)
 	touch $@
 
@@ -140,7 +143,7 @@ rebuild-shell: build-environment-clean shell
 # Doxygen. Therefore the next two targets define building and cleaning rules for Doxygen.
 
 .PHONY: doxygen # Build documentation.
-doxygen:
+doxygen: .build-environment
 	$(call docker,cd $(top) && doxygen)
 
 all:: doxygen
