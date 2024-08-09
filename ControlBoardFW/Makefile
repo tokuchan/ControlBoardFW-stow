@@ -59,6 +59,19 @@ clean::
 .PHONY: distclean # Restore the repo to pristine state.
 distclean::
 
+#. == Create a banner to show what we're building
+
+#. I work with workspaces in git. I name my workspaces the same name as the
+# parent, but with --something on the end. Therefore, I want to check the CWD,
+# and if the basename ends in --something, I want to print "something" as a
+# banner, to make it easy to tell where I am. I do this by just adding a phony
+# rule to print it, and adding that to all.
+
+.PHONY: whereami # Print a banner showing my current workspace
+whereami:
+	 pwd | xargs basename | figlet
+all:: whereami
+
 #. == Define CMAKE options
 
 #. Cmake requires several options be set in order to build. For now, I'm
@@ -156,7 +169,7 @@ target/build:
 #. === Generate the build system
 
 target/build/Makefile: target/build
-	$(call docker,cd $(top)/target/build && cmake $(cmake-opts) ../..)
+	$(call docker,cd $(top)/target/build && pwd && cmake $(cmake-opts) ../..)
 
 #. The build-target sub target actually runs the build. Please note the scoped
 # variable `parallel`, which specifies the number of concurrent processes to run
@@ -166,7 +179,7 @@ target/build/Makefile: target/build
 .PHONY: build-target # Run the cmake-generated Makefile in the build environment.
 build-target: parallel:= 20
 build-target: target/build/Makefile
-	$(call docker,cmake --build $(top)/target/build --parallel=$(parallel))
+	$(call docker,cd $(top)/target/build && pwd && cmake --build $(top)/target/build --parallel=$(parallel))
 
 build:: build-target
 
