@@ -85,10 +85,10 @@ define cmake-opts
 -DJANSSON_BUILD_DOCS=Off \
 -DBUILD_DOC=Off \
 -DINHIBIT_SUBMODULES=Off \
--DINHIBIT_TAR_PROJECT=Off \
--DBUILD_TESTS=On \
+-DINHIBIT_TAR_PROJECT=On \
+-DBUILD_TESTS=Off \
 -DUSE_SUPPORT_LIB=On \
--DCMAKE_BUILD_TYPE=Debug
+-DCMAKE_BUILD_TYPE=Release
 endef
 
 #. == Define the build environment
@@ -101,8 +101,11 @@ endef
 # to run `docker build` properly on the selected build image. The final target
 # removes the checkpoint files so that docker will be run again.
 
+#define docker
+#docker run --security-opt seccomp=unconfined --rm -it -w $(top) -v$$HOME:$$HOME:z -v$(top):$(top):z -t $(build-image) '$1'
+#endef
 define docker
-docker run --security-opt seccomp=unconfined --rm -it -w $(top) -v$$HOME:$$HOME:z -v$(top):$(top):z -t $(build-image) '$1'
+cd $(top) && $1
 endef
 
 .PHONY: build-environment # Docker image needed to build things
@@ -112,7 +115,7 @@ build-environment: .build-environment
 	touch $@
 
 .build-environment-$(build-image):
-	docker build $(top) --security-opt seccomp=unconfined --tag=$(build-image) --file=$(top)/Dockerfiles/$(build-image)/Dockerfile
+	#docker build $(top) --security-opt seccomp=unconfined --tag=$(build-image) --file=$(top)/Dockerfiles/$(build-image)/Dockerfile
 	touch $@
 
 .PHONY: build-environment-clean # Clean build environment marker files.
@@ -171,6 +174,20 @@ test:: build
 target/build:
 	mkdir -p $(top)/target/build
 
+#. === Describe Discovered Parameters
+
+#. Several parameters may be discovered by this Makefile. For example, we discover the number of processors to use, then divide by two to be kind.
+
+.PHONY: discover-configuration # Display the set of discovered parameters
+discover-configuration: tbc:= $(shell tput tbc)
+discover-configuration: hts:= $(shell tput hts)
+discover-configuration: el:= $(shell tput el)
+discover-configuration:
+	@ printf "$(tbc).....................$(hts)................$(hts)\r$(el)Key\tValue\n"
+	@ printf "Number of processors\t%s\n" $(shell nproc)
+	@ printf "Number of make jobs\t%s\n" $(shell echo $$(( $$(nproc) / 2 )) )
+	@ printf "$(tbc)"
+
 #. === Generate the build system
 
 target/build/Makefile: target/build
@@ -182,7 +199,11 @@ target/build/Makefile: target/build
 # right on the command line: `make parallel=2 clean all`.
 
 .PHONY: build-target # Run the cmake-generated Makefile in the build environment.
-build-target: parallel:= 20
+.PHONY: foo
+foo:
+	$(call docker,echo $(shell echo $$(( $$(nproc) / 2 )) ))
+
+build-target: parallel:= $(shell echo $$(( $$(nproc) / 2 )) )
 build-target: target/build/Makefile
 	$(call docker,cd $(top)/target/build && pwd && cmake --build $(top)/target/build --parallel=$(parallel))
 
@@ -246,13 +267,13 @@ help:
 # ``````
 # ````cpp
 # if (foo)
-#   bar ();
+#		bar ();
 # ````
 # ``````
 # which renders thus:
 # ````cpp
 # if (foo)
-#   bar ();
+#		bar ();
 # ````
 # That way, weave won't see the sources, because I didn't include any blank
 # lines to separate the paragraphs.
@@ -281,7 +302,7 @@ export LANG=en_US.UTF-8
 
 #. Vivado is picky about shells. Therefore, I have to use bash by default.
 
-SHELL:= /bin/bash -l
+SHELL:= /bin/bash --noprofile -l
 
 #. Now we can define the special yocto targets.
 
